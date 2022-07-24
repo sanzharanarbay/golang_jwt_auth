@@ -1,22 +1,33 @@
 package routes
 
 import (
+	"github.com/gin-gonic/gin"
 	usersController "jwt_auth_golang/controllers/users"
 	authController "jwt_auth_golang/controllers/auth"
-	middleware "jwt_auth_golang/middleware"
-	"github.com/gorilla/mux"
+	"jwt_auth_golang/middleware"
 )
 
-func ApiRoutes(prefix string, r *mux.Router) {
+func ApiRoutes(prefix string, router *gin.Engine) {
 
-	s := r.PathPrefix(prefix).Subrouter()
+	// general routes
+		router.POST("/login", authController.Login)
+		router.POST("/logout", authController.Logout)
+		router.POST("/refresh", authController.Refresh)
+		router.POST("/register", usersController.CreateUser)
 
-	s.HandleFunc("/login", authController.Login).Methods("POST")
-	s.HandleFunc("/register", usersController.CreateUser).Methods("POST")
-	s.HandleFunc("/users", middleware.ValidateMiddleware(usersController.GetUsers)).Methods("GET")
-	s.HandleFunc("/users/{id}", middleware.ValidateMiddleware(usersController.GetUser)).Methods("GET")
-	s.HandleFunc("/users", middleware.ValidateMiddleware(usersController.CreateUser)).Methods("POST")
-	s.HandleFunc("/users/{id:[0-9]+}", middleware.ValidateMiddleware(usersController.GetUser)).Methods("GET")
-	s.HandleFunc("/users/{id:[0-9]+}", middleware.ValidateMiddleware(usersController.UpdateUser)).Methods("PUT")
-	s.HandleFunc("/users/{id}", middleware.ValidateMiddleware(usersController.DeleteUser)).Methods("DELETE")
+		// dashboard routes
+
+	apiGroup := router.Group(prefix)
+	{
+		dashboard := apiGroup.Group("/dashboard").Use(middleware.TokenAuthMiddleware())
+		{
+			dashboard.GET("/users", usersController.GetUsers)
+			dashboard.GET("/users/:id", usersController.GetUser)
+			dashboard.POST("/users", usersController.CreateUser)
+			dashboard.PUT("/users/:id", usersController.UpdateUser)
+			dashboard.DELETE("/users/:id", usersController.DeleteUser)
+		}
+	}
+
+
 }

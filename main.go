@@ -2,29 +2,24 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
+	"github.com/gin-gonic/gin"
 	"os"
 
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	_ "github.com/joho/godotenv/autoload"
 	"jwt_auth_golang/routes"
 )
 
 func main() {
 	port := os.Getenv("APP_PORT")
+	host:= os.Getenv("APP_HOST")
 
 	prefix := os.Getenv("ROUTE_PREFIX")
 	fmt.Println("Server started at " + port + "...")
-	r := mux.NewRouter().StrictSlash(true)
 
+	router := gin.New()
 	// Routes
-	routes.ApiRoutes(prefix, r)
+	routes.ApiRoutes(prefix, router)
 
 	//Start Server on the port set in your .env file
-	err := http.ListenAndServe(":"+port, handlers.LoggingHandler(os.Stdout, r))
-	if err != nil {
-		log.Fatal(err)
-	}
+	router.Run(host +":"+port)
 }

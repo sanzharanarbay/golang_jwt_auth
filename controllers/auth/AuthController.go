@@ -1,36 +1,34 @@
 package auth
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
+	_ "github.com/joho/godotenv/autoload"
+	"golang.org/x/crypto/bcrypt"
+	"jwt_auth_golang/handlers"
+	"jwt_auth_golang/models"
+	"jwt_auth_golang/modules/auth"
+	"jwt_auth_golang/services"
+	u "jwt_auth_golang/utils"
 	"net/http"
 	"os"
 	"strconv"
-	"time"
-
-	jwt "github.com/dgrijalva/jwt-go"
-	"jwt_auth_golang/models"
-	u "jwt_auth_golang/utils"
-	_ "github.com/joho/godotenv/autoload"
-	"golang.org/x/crypto/bcrypt"
 )
 
-type JwtToken struct {
-	AccessToken string `json:"access-token"`
-}
+var redisClient = services.InitRedis()
+var rd = auth.NewAuth(redisClient)
+var tk = auth.NewToken()
+var service = handlers.NewProfile(rd, tk)
 
-var jwt_secret = os.Getenv("jwt_secret")
 
-func Login(w http.ResponseWriter, req *http.Request) {
+func Login(c *gin.Context) {
 	user := &models.User{}
 
-	err := json.NewDecoder(req.Body).Decode(user)
-	if err != nil {
-		u.Respond(w, u.Message(false, "Error while decoding request body"))
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, "Invalid json provided")
 		return
 	}
-	defer req.Body.Close()
 	username := user.Username
 	password := user.Password
 
@@ -41,44 +39,125 @@ func Login(w http.ResponseWriter, req *http.Request) {
 	*/
 	result := models.GetUsername(username)
 	if result == nil {
-		u.Respond(w, u.Message(false, "Your credentials do not match our records"))
+		c.JSON(http.StatusUnauthorized, "Please provide valid login details")
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(result.Password), []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(result.Password), []byte(password))
 
 	if err != nil {
-		fmt.Println(err)
-		u.Respond(w, u.Message(false, "Your credentials do not match our records"))
+		c.JSON(http.StatusUnauthorized, "Please provide valid login details")
 		return
 	}
-	// access token ttl
-	ttl := 2 * time.Minute
-	accessTokenExpire := os.Getenv("access_token_expire")
-	min, err := strconv.Atoi(accessTokenExpire)
+
+	userId := strconv.FormatUint(uint64(result.ID), 10)
+
+	ts, err := service.Tk.CreateToken(userId)
 	if err != nil {
-		log.Println(err)
+		c.JSON(http.StatusUnprocessableEntity, err.Error())
+		return
 	}
-	if accessTokenExpire != "" {
-		ttl = time.Duration(min) * time.Minute
+
+	saveErr := service.Rd.CreateAuth(userId, ts)
+	if saveErr != nil {
+		c.JSON(http.StatusUnprocessableEntity, err.Error())
+		return
 	}
-	CreateToken(w, username, password, ttl)
+
+	tokens := map[string]string{
+		"access_token":  ts.AccessToken,
+		"refresh_token": ts.RefreshToken,
+	}
+
+	resp := u.Message(true, "success")
+	resp["data"] = tokens
+	u.Respond(c, http.StatusOK, resp)
+	return
+
 }
 
-func CreateToken(w http.ResponseWriter, username string, password string, ttl time.Duration) {
+func Logout(c *gin.Context) {
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": username,
-		"exp":      ttl,
-	})
-
-	tokenString, error := token.SignedString([]byte(jwt_secret))
-	if error != nil {
-		fmt.Println(error)
+	metadata, _ := service.Tk.ExtractTokenMetadata(c.Request)
+	if metadata != nil {
+		deleteErr := service.Rd.DeleteTokens(metadata)
+		if deleteErr != nil {
+			c.JSON(http.StatusBadRequest, deleteErr.Error())
+			return
+		}
 	}
-	resp := u.Message(true, "success")
-	resp["data"] = JwtToken{AccessToken: tokenString}
-	u.Respond(w, resp)
+	c.JSON(http.StatusOK, "Successfully logged out")
 	return
 }
+
+func Refresh(c *gin.Context) {
+	mapToken := map[string]string{}
+	if err := c.ShouldBindJSON(&mapToken); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, "invalid json")
+		return
+	}
+	refreshToken := mapToken["refresh_token"]
+
+	//verify the token
+	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("REFRESH_SECRET")), nil
+	})
+	//if there is an error, the token must have expired
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, "Refresh token expired")
+		return
+	}
+	//is token valid?
+	if _, ok := token.Claims.(jwt.Claims); !ok && !token.Valid {
+		c.JSON(http.StatusUnauthorized, err)
+		return
+	}
+	//Since token is valid, get the uuid:
+	claims, ok := token.Claims.(jwt.MapClaims) //the token claims should conform to MapClaims
+	if ok && token.Valid {
+		refreshUuid, ok := claims["refresh_uuid"].(string) //convert the interface to string
+		if !ok {
+			c.JSON(http.StatusUnprocessableEntity, err)
+			return
+		}
+		userId, roleOk := claims["user_id"].(string)
+		if  roleOk == false {
+			c.JSON(http.StatusUnprocessableEntity, "unauthorized")
+			return
+		}
+		//Delete the previous Refresh Token
+		delErr := service.Rd.DeleteRefresh(refreshUuid)
+		if delErr != nil { //if any goes wrong
+			c.JSON(http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		//Create new pairs of refresh and access tokens
+		ts, createErr := service.Tk.CreateToken(userId)
+		if  createErr != nil {
+			c.JSON(http.StatusForbidden, createErr.Error())
+			return
+		}
+		//save the tokens metadata to redis
+		saveErr := service.Rd.CreateAuth(userId, ts)
+		if saveErr != nil {
+			c.JSON(http.StatusForbidden, saveErr.Error())
+			return
+		}
+		tokens := map[string]string{
+			"access_token":  ts.AccessToken,
+			"refresh_token": ts.RefreshToken,
+		}
+		resp := u.Message(true, "success")
+		resp["data"] = tokens
+		c.JSON(http.StatusCreated, resp)
+	} else {
+		c.JSON(http.StatusUnauthorized, "refresh expired")
+	}
+}
+
+
+
 

@@ -1,124 +1,113 @@
 package users
 
 import (
-	"encoding/json"
+	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"time"
 
 	"jwt_auth_golang/models"
 	u "jwt_auth_golang/utils"
-	"github.com/gorilla/mux"
 )
 
 // Get one user by id
-func GetUser(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	id, err := strconv.Atoi(params["id"])
+func GetUser(c *gin.Context) {
+	param := c.Param("id")
+	id, err := strconv.Atoi(param)
 
 	if err != nil {
-		u.Respond(w, u.Message(false, "There was an error in your request"))
+		c.JSON(http.StatusUnprocessableEntity, "Invalid json provided")
 		return
 	}
 
 	user := models.GetUser(id)
 	if user == nil {
-		u.Respond(w, u.Message(false, "User not found"))
+		c.JSON(http.StatusNotFound, "User not found")
 		return
 	}
 
 	resp := u.Message(true, "success")
 	resp["data"] = user
-	u.Respond(w, resp)
+	u.Respond( c, http.StatusOK, resp)
 	return
 }
 
 // Get all the users in the users table
-func GetUsers(w http.ResponseWriter, r *http.Request) {
+func GetUsers(c *gin.Context) {
 	resp := u.Message(true, "success")
 	users := models.GetUsers()
 	if users == nil {
-		u.Respond(w, u.Message(false, "No users found"))
+		c.JSON(http.StatusOK, "No users found")
 		return
 	}
 	resp["data"] = users
-	u.Respond(w, resp)
+	u.Respond(c , http.StatusOK, resp)
 	return
 }
 
-func CreateUser(w http.ResponseWriter, r *http.Request) {
+func CreateUser(c *gin.Context) {
 
 	user := &models.User{}
 
-	err := json.NewDecoder(r.Body).Decode(user)
-	if err != nil {
-		u.Respond(w, u.Message(false, "Error while decoding request body"))
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, "invalid json")
 		return
 	}
-	defer r.Body.Close()
 
 	resp := user.Create()
-	u.Respond(w, resp)
+	u.Respond(c, http.StatusCreated, resp)
 }
 
-func UpdateUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
+func UpdateUser(c *gin.Context) {
 	var user models.User
-	id, err := strconv.Atoi(vars["id"])
+	param := c.Param("id")
+	id, err := strconv.Atoi(param)
 
-	if err != nil {
-		u.Respond(w, u.Message(false, "There was an error in your request"))
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, "invalid json")
 		return
 	}
 
 	err = models.GetUserForUpdateOrDelete(id, &user)
 	if err != nil {
-		u.Respond(w, u.Message(false, "User not found"))
+		c.JSON(http.StatusNotFound, "User not found")
 		return
 	}
 
-	err = json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
-		u.Respond(w, u.Message(false, "Error while decoding request body"))
-		return
-	}
 
 	user.ID = uint(id)
 	user.UpdatedAt = time.Now().Local()
-	defer r.Body.Close()
 
 	// Update user here
 	err = models.UpdateUser(&user)
 	if err != nil {
-		u.Respond(w, u.Message(false, "Could not update the record"))
+		c.JSON(http.StatusUnprocessableEntity, "Could not update the record")
 		return
 	}
 	resp := u.Message(true, "Updated successfully")
 	resp["data"] = user
-	u.Respond(w, resp)
+	u.Respond(c, http.StatusCreated, resp)
 }
 
-func DeleteUser(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-
+func DeleteUser(c *gin.Context) {
 	var user models.User
-	id, err := strconv.Atoi(params["id"])
+	param := c.Param("id")
+	id, err := strconv.Atoi(param)
 	if err != nil {
-		u.Respond(w, u.Message(false, "There was an error in your request"))
+		c.JSON(http.StatusUnprocessableEntity, "There was an error in your request")
 		return
 	}
 
 	err = models.GetUserForUpdateOrDelete(id, &user)
 	if err != nil {
-		u.Respond(w, u.Message(false, "User not found"))
+		c.JSON(http.StatusNotFound, "User not found")
 		return
 	}
 
 	err = models.DeleteUser(&user)
 	if err != nil {
-		u.Respond(w, u.Message(false, "Could not delete the record"))
+		c.JSON(http.StatusUnprocessableEntity, "Could not delete the record")
 		return
 	}
-	u.Respond(w, u.Message(true, "User has been deleted successfully"))
-	return
+	u.Respond(c, http.StatusOK, u.Message(true, "User has been deleted successfully"))
 }
