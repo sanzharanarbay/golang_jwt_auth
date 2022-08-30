@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"jwt_auth_golang/handlers"
-	"jwt_auth_golang/modules/auth"
-	"jwt_auth_golang/services"
+	"jwt_auth_golang/application/handlers"
+	"jwt_auth_golang/application/modules/auth"
+	"jwt_auth_golang/application/services"
 	"net/http"
 )
 

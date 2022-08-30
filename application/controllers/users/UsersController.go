@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"jwt_auth_golang/models"
-	u "jwt_auth_golang/utils"
+	"jwt_auth_golang/application/models"
+	u "jwt_auth_golang/application/utils"
 )
 
 // Get one user by id

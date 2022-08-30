@@ -1,0 +1,83 @@
+version: "3.7"
+
+services:
+  db:
+    image: postgres:10.1
+    container_name: jwt_db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+
+  app:
+    container_name:  jwt_app
+    platform: linux/x86_64
+    build:
+      context: ./
+      dockerfile: dockerfiles/app.Dockerfile
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    restart: on-failure
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app/
+    networks:
+      - app-network
+
+  redis:
+    image: redis:4.0
+    container_name: jwt_redis
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "6382:6379"
+    networks:
+      - app-network
+
+  redis-commander:
+    container_name: jwt_redis_commander
+    image: rediscommander/redis-commander:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - app-network
+
+  phppgadmin:
+    container_name: jwt_phppgadmin
+    image: dockage/phppgadmin:latest
+    environment:
+      - PHP_PG_ADMIN_SERVER_HOST=db
+      - PHP_PG_ADMIN_SERVER_PORT=5432
+      - PHP_PG_ADMIN_SERVER_DEFAULT_DB=postgres
+    restart: unless-stopped
+    ports:
+      - "8087:80"
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local

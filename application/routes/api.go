@@ -2,9 +2,9 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	usersController "jwt_auth_golang/controllers/users"
-	authController "jwt_auth_golang/controllers/auth"
-	"jwt_auth_golang/middleware"
+	usersController "jwt_auth_golang/application/controllers/users"
+	authController "jwt_auth_golang/application/controllers/auth"
+	"jwt_auth_golang/application/middleware"
 )
 
 func ApiRoutes(prefix string, router *gin.Engine) {

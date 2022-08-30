@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	u "jwt_auth_golang/utils"
-	s "jwt_auth_golang/services"
+	u "jwt_auth_golang/application/utils"
+	s "jwt_auth_golang/application/services"
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
 )

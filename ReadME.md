@@ -2,42 +2,21 @@
 
 ## Getting Started
 
-### Folder Structure
-This is my folder structure under my `$GOPATH` or `$HOME/your_username/go`.
+## Run application with Docker-compose
+
 ```
-.
-|-- bin
-+-- src
-|   +-- github.com
-|   |   +-- sanzharanarbay
-|   |   |   +-- jwt_auth_golang
-|   |   |   |   |-- .env
-|   |   |   |   |-- main.go
-|   |   |   |   |-- .gitignore.go
-|   |   |   |   |-- README.md
-|   |   |   |   |   +-- controllers
-|   |   |   |   |   |   | users
-|   |   |   |   |   |   | +-- UsersController.go
-|   |   |   |   |   +-- auth
-|   |   |   |   |   |   |-- AuthController.go
-|   |   |   |   +-- models
-|   |   |   |   |   |-- users.go
-|   |   |   |   +-- middleware
-|   |   |   |   |   |-- middleware.go
-|   |   |   |   +-- handlers
-|   |   |   |   |   |-- authHandler.go
-|   |   |   |   +-- modules
-|   |   |   |   |   |   +-- auth
-|   |   |   |   |   |   |   |-- auth.go
-|   |   |   |   |   |   |   |-- token.go
-|   |   |   |   +-- routes
-|   |   |   |   |   |-- api.go
-|   |   |   |   +-- utils
-|   |   |   |   |   |-- utils.go
+git clone {repository}
+docker-compose build // build services
+docker-compose up -d // start containers
+docker-compose ps // show the List of the containers
+docker-compose logs -f {serviceName} // view logs from containers
+{serviceNames} - app, db, redis, .etc
+docker-compose down  // stop and remove containers
 ```
 
+
 ## Download the packages used to create this rest API
-Run the following Golang commands to install all the necessary packages. These packages will help you set up a web server, ORM for interacting with your db, mysql driver for db connection, load your environment variables from the .env file and generate JWT tokens.
+Run the following Golang commands to install all the necessary packages, if you run without DOCKER. These packages will help you set up a web server, ORM for interacting with your db, mysql driver for db connection, load your environment variables from the .env file and generate JWT tokens.
 
 ```
 go get -u github.com/gorilla/mux

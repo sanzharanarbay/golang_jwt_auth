@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"jwt_auth_golang/modules/auth"
+	"jwt_auth_golang/application/modules/auth"
 )
 
 // ProfileHandler struct
