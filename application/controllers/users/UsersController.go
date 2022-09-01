@@ -60,12 +60,17 @@ func CreateUser(c *gin.Context) {
 
 func UpdateUser(c *gin.Context) {
 	var user models.User
+	var request models.User
 	param := c.Param("id")
 	id, err := strconv.Atoi(param)
 
-	if err := c.ShouldBindJSON(&user); err != nil {
+	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, "invalid json")
 		return
+	}
+
+	if resp, ok := request.Validate(); !ok {
+		c.JSON(http.StatusUnprocessableEntity, resp)
 	}
 
 	err = models.GetUserForUpdateOrDelete(id, &user)
@@ -74,9 +79,11 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-
 	user.ID = uint(id)
 	user.UpdatedAt = time.Now().Local()
+	user.Name = request.Name
+	user.Password = request.Password
+	user.Username = request.Username
 
 	// Update user here
 	err = models.UpdateUser(&user)

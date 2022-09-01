@@ -77,7 +77,12 @@ func GetUsers() []*User {
 }
 
 func UpdateUser(user *User) (err error) {
-
+	hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 5)
+	if err != nil {
+		u.Message(false, "There was an internal error")
+		return nil
+	}
+	user.Password = string(hash)
 	err = s.GetDB().Save(user).Error
 	if err != nil {
 		fmt.Println(err)
